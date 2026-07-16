@@ -46,6 +46,10 @@ def custom_collate_fn(batch):
         "raw_action_dim",
         "image_size",
         "action_processing_record",
+        # Per-sample action denorm affine (offset/scale, [D]); kept as a list so a
+        # mixed-embodiment batch with differing action widths never fails to stack.
+        "action_denorm_offset",
+        "action_denorm_scale",
     }
 
     # Data keys where a per-sample value of ``None`` is a meaningful signal
@@ -272,6 +276,20 @@ class JointDataLoader(webdataset.WebLoader):
             log.info(
                 "JointDataLoader: prewarm DISABLED (debug mode); first iteration may incur per-stream cold-load cost"
             )
+
+    def reset_iterators(self) -> None:
+        """Rebuild the per-stream iterators and clear packing buffers so the next pass
+        starts from the beginning.
+
+        ``self.dataloaders`` is created once in ``__init__`` and persists across
+        ``__iter__`` calls, so an infinite training stream keeps flowing. A FINITE loader
+        (e.g. validation) would instead drain permanently after its first pass —
+        subsequent ``__iter__`` calls resume the exhausted iterator and yield nothing.
+        Callers that re-run a finite loader (``Trainer.validate``) call this first to
+        restart it from the top.
+        """
+        self.dataloaders = [iter(dataloader) for dataloader in self.dataloader_list]
+        self.buffers = [deque() for _ in range(len(self.dataloader_list))]
 
     def _normalize_uniae_chunk_frames(
         self, uniae_chunk_frames: int | Mapping[str, int] | None

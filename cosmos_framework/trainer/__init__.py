@@ -421,8 +421,10 @@ class ImaginaireTrainer:
         """
         self.callbacks.on_validation_start(model, dataloader_val, iteration=iteration)
         model.eval()
-        # Evaluate on the full validation set.
-        with ema.ema_scope(model, enabled=model.config.ema.enabled):
+
+        def _run_val_epoch() -> int:
+            """Run one validation pass; return the number of batches processed."""
+            processed = 0
             for val_iter, data_batch in enumerate(dataloader_val):
                 if self.config.trainer.max_val_iter is not None and val_iter >= self.config.trainer.max_val_iter:
                     break
@@ -430,4 +432,18 @@ class ImaginaireTrainer:
                 self.callbacks.on_validation_step_start(model, data_batch, iteration=iteration)
                 output_batch, loss = model.validation_step(data_batch, iteration)
                 self.callbacks.on_validation_step_end(model, data_batch, output_batch, loss, iteration=iteration)
+                processed += 1
+            return processed
+
+        # Evaluate on the full validation set.
+        with ema.ema_scope(model, enabled=model.config.ema.enabled):
+            processed = _run_val_epoch()
+            # The val loader's underlying iterator is built once and persists across calls
+            # (JointDataLoader), so a FINITE val set drains after a few runs and yields nothing.
+            # ONLY when it drains, reset it to the top and run once more so this validation still
+            # produces metrics (and later runs continue). Infinite loaders never yield 0, so they
+            # never reset; the single retry can't loop even if the set is genuinely empty.
+            if processed == 0 and hasattr(dataloader_val, "reset_iterators"):
+                dataloader_val.reset_iterators()
+                _run_val_epoch()
         self.callbacks.on_validation_end(model, iteration=iteration)

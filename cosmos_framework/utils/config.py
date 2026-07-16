@@ -334,6 +334,10 @@ class CheckpointConfig:
     broadcast_via_filesystem: bool = False
     load_ema_to_reg: bool = False
 
+    # After each save, keep full (resumable) state only for the latest checkpoint and strip
+    # older iter_* checkpoints down to model weights (delete optim/scheduler/trainer/dataloader).
+    keep_only_model_for_older_checkpoints: bool = False
+
     # Enable GCS patch in boto3 for loading/saving checkpoints from/to GCS
     enable_gcs_patch_in_boto3: bool = False
 

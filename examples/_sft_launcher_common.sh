@@ -55,10 +55,14 @@ if [[ -n "${BASE_CHECKPOINT_PATH:-}" ]]; then
 fi
 
 OUTPUT_ROOT="${OUTPUT_ROOT:-$WORKDIR/outputs/train}"
-LOG_DIR="$OUTPUT_ROOT/logs"
+# IMAGINAIRE_OUTPUT_ROOT is the real training-artifact root (checkpoints, config.yaml);
+# resolve it FIRST and put logs under it so logs live alongside the run, not in a stale
+# outputs/train/logs. Anchor a relative value to $WORKDIR (mkdir below runs before the cd).
+IMAGINAIRE_OUTPUT_ROOT="${IMAGINAIRE_OUTPUT_ROOT:-$OUTPUT_ROOT}"
+[[ "$IMAGINAIRE_OUTPUT_ROOT" = /* ]] || IMAGINAIRE_OUTPUT_ROOT="$WORKDIR/$IMAGINAIRE_OUTPUT_ROOT"
+LOG_DIR="$IMAGINAIRE_OUTPUT_ROOT/logs"
 TOML_STEM="$(basename "$TOML_FILE" .toml)"
 LOG_FILE="$LOG_DIR/${LOG_FILENAME:-${TOML_STEM}_sft.log}"
-IMAGINAIRE_OUTPUT_ROOT="${IMAGINAIRE_OUTPUT_ROOT:-$OUTPUT_ROOT}"
 mkdir -p "$LOG_DIR"
 
 echo ">>> $(date '+%H:%M:%S') Checking inputs..."
@@ -82,6 +86,12 @@ echo ">>> $(date '+%H:%M:%S') log:        $LOG_FILE"
 # Default empty if caller didn't set; safe under set -u.
 [[ ${TAIL_OVERRIDES+x} ]] || TAIL_OVERRIDES=()
 
+# Script-level flags for cosmos_framework.scripts.train — inserted BEFORE the
+# `--` opts separator (e.g. --attach_vscode_debugger, --dryrun). Space-separated
+# string so it survives `bash <wrapper>` (a child process), then word-split into
+# an array. Distinct from TAIL_OVERRIDES, which are Hydra key=value opts after `--`.
+TRAIN_SCRIPT_ARGS=( ${EXTRA_TRAIN_ARGS:-} )
+
 TRAILING_ARGS=()
 if (( ${#TAIL_OVERRIDES[@]} > 0 )); then
     TRAILING_ARGS=(-- "${TAIL_OVERRIDES[@]}")
@@ -98,6 +108,7 @@ TORCHRUN_ARGS=(--nproc_per_node="${NPROC_PER_NODE:-8}" --master_port="${MASTER_P
 IMAGINAIRE_OUTPUT_ROOT="$IMAGINAIRE_OUTPUT_ROOT" PYTHONPATH=. \
     torchrun "${TORCHRUN_ARGS[@]}" -m cosmos_framework.scripts.train \
     --sft-toml="$TOML_FILE" \
+    "${TRAIN_SCRIPT_ARGS[@]}" \
     "${TRAILING_ARGS[@]}" \
     2>&1 | tee "$LOG_FILE"
 

@@ -27,6 +27,7 @@ from cosmos_framework.model.generator.algorithm.loss.flow_matching import comput
 from cosmos_framework.model.generator.algorithm.loss.load_balancing import compute_load_balancing_loss
 from cosmos_framework.configs.base.defaults.model_config import OmniMoTModelConfig
 from cosmos_framework.data.generator.action.action_processing import ActionProcessor, get_action_processing_records
+from cosmos_framework.data.generator.action.domain_utils import embodiment_from_domain_id, resolve_action_modalities
 from cosmos_framework.data.generator.utils import IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO
 from cosmos_framework.model.generator.diffusion.rectified_flow import RectifiedFlow
 from cosmos_framework.model.generator.diffusion.samplers.edm import EDMSampler
@@ -2841,7 +2842,80 @@ class OmniMoTModel(ImaginaireModel):
 
     @torch.no_grad()
     def validation_step(self, data_batch: dict[str, torch.Tensor], iteration: int):
-        pass
+        """Validation metric: L1 between the GT action and the action sampled through the
+        inference path (``generate_samples_from_batch``), mirroring the psix server's
+        ``--run-validation``. The returned scalar ``loss`` is logged as ``val/loss`` by
+        ``WandBCallbackEval`` (which ignores ``output_batch``).
+
+        NOTE: this runs the full denoising sampler (num_steps) + network forward per val
+        batch — much slower than a forward-loss validation. Cap it via ``max_val_iter``.
+        Actions are compared in RAW (de-normalized) units when the batch carries the denorm
+        affine (``action_denorm_offset``/``action_denorm_scale``, attached by the action
+        dataset), so the reported L1 matches the open-loop server/client eval's ``raw L1``
+        (physical action units); it falls back to the model's normalized space otherwise.
+        """
+        # generate_samples_from_batch produces one prediction per sample in the (packed) batch,
+        # so pass one seed per sample (samples["action"][i] <-> data_batch["action"][i]).
+        n = len(data_batch["action"])
+        samples = self.generate_samples_from_batch(
+            data_batch, guidance=1.0, seed=list(range(n)), num_steps=4, n_sample=n
+        )
+        # Per-sample denorm affine (raw = normalized*scale + offset), list-collated 1:1 with
+        # "action". When present, de-normalize pred+GT so the L1 is in raw action units;
+        # constant (zero-scale) channels map to their offset on both sides -> contribute 0.
+        denorm_off = data_batch.get("action_denorm_offset")
+        denorm_scl = data_batch.get("action_denorm_scale")
+        use_denorm = denorm_off is not None and denorm_scl is not None
+
+        def _row(x):  # unwrap the per-sample list nesting that mirrors data_batch["action"][i]
+            return x[0] if isinstance(x, (list, tuple)) else x
+
+        # Per-sample abs error over the predicted rows (row 0 is the given use_state
+        # conditioning), stacked across all samples in the batch.
+        aes = []
+        for i in range(n):
+            pred_i = samples["action"][i].float()  # [T, D]
+            gt_i = data_batch["action"][i][0].to(pred_i.device).float()  # [T, D]
+            m = min(pred_i.shape[0], gt_i.shape[0])
+            p, g = pred_i[1:m], gt_i[1:m]  # [T-1, D] — drop the row-0 state conditioning
+            if use_denorm:
+                off = _row(denorm_off[i]).to(pred_i.device).float()  # [D]
+                scl = _row(denorm_scl[i]).to(pred_i.device).float()  # [D]
+                d = min(p.shape[-1], off.shape[-1])
+                p = p[..., :d] * scl[:d] + off[:d]
+                g = g[..., :d] * scl[:d] + off[:d]
+            aes.append((p - g).abs())  # [T-1, D]
+        ae = torch.cat(aes, dim=0)  # [n*(T-1), D]
+        action_l1 = ae.mean()  # total -> logged as val/loss
+        # Per-embodiment, per-modality L1. Each val batch is single-embodiment (the val
+        # loader is RankPartitioned -> each rank serves one dataset), so key every metric by
+        # the batch's embodiment (from domain_id). WandBCallbackEval aggregates each key across
+        # ranks and logs it as val/<key>, giving SEPARATE per-embodiment metrics in a mixed run
+        # (e.g. val/<embodiment_a>/action_l1_body vs val/<embodiment_b>/action_l1_body).
+        # Layouts differ per embodiment; the flat g1_simple action is a single 36-D column
+        # (-> total only). The global val/loss (action_l1 returned below) stays the combined
+        # total across embodiments.
+        output_batch: dict[str, torch.Tensor] = {}
+        embodiment = _embodiment_from_data_batch(data_batch)
+        prefix = f"{embodiment}/" if embodiment else "action/"
+        output_batch[f"{prefix}action_l1_total"] = action_l1
+        for name, start, end in resolve_action_modalities(embodiment, ae.shape[-1]):
+            output_batch[f"{prefix}action_l1_{name}"] = ae[:, start:end].mean()
+
+        # Inference video (rank 0 only): decode the first sample's predicted rollout and
+        # place it side-by-side with the content-cropped GT [3, T, H, 2W] uint8 in output_batch;
+        # WandBCallbackEval logs the first one it sees as val/video.
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        if rank == 0:
+            pred_video = self.decode(samples["vision"][0]).squeeze(0).float()  # [3, T, H, W] in [-1, 1]
+            gh, gw = pred_video.shape[-2:]
+            gt_video = data_batch["video"][0]
+            if gt_video.dim() == 5:  # [1, 3, T, H, W] -> [3, T, H, W]
+                gt_video = gt_video[0]
+            gt_video = gt_video[..., :gh, :gw].to(pred_video.device).float()  # crop padded GT to content
+            sbs = torch.cat([pred_video, gt_video], dim=-1)  # [3, T, H, 2W] in [-1, 1] (pred | gt)
+            output_batch["val_video"] = ((sbs + 1.0) / 2.0).clamp(0.0, 1.0).mul(255.0).round().to(torch.uint8)
+        return output_batch, action_l1
 
     @torch.no_grad()
     def forward(self, xt, t):
@@ -4711,6 +4785,28 @@ class OmniMoTModel(ImaginaireModel):
         from cosmos_framework.utils.generator.lora import init_lora_weights_post_materialization
 
         init_lora_weights_post_materialization(network)
+
+
+def _embodiment_from_data_batch(data_batch: dict) -> str | None:
+    """Embodiment name from the batch's first ``domain_id`` (``None`` if unavailable).
+
+    Handles the tensor / list / scalar shapes ``domain_id`` can take in a (packed) batch.
+    """
+    domain_ids = data_batch.get("domain_id", None)
+    if domain_ids is None:
+        return None
+    if isinstance(domain_ids, torch.Tensor):
+        if domain_ids.numel() == 0:
+            return None
+        did = int(domain_ids.flatten()[0].item())
+    elif isinstance(domain_ids, (list, tuple)):
+        first = next((d for d in domain_ids if d is not None), None)
+        if first is None:
+            return None
+        did = int(first)
+    else:
+        did = int(domain_ids)
+    return embodiment_from_domain_id(did)
 
 
 def _broadcast_seed(seed: list[int], group: dist.ProcessGroup, rank: int) -> list[int]:

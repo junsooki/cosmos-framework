@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: OpenMDW-1.1
+
+# ============================================================================
+# G1 "simple" (whole-body locomotion+pick) action-policy SFT — run config for the
+# `action_policy_simple_nano` experiment. Recipe knobs (optimizer/lr, scheduler,
+# grad_clip, action-head skip-on-load, flat 36-D action / 32-D state dataset wiring,
+# max_action_dim=36, fps 50, train/val split roots) live in the registered
+# experiment; this file only sets run-level scalars (iters, ckpt cadence,
+# parallelism, batch, VAE).
+#
+# Env required (PSI_HOME points the experiment's dataset roots):
+#   PSI_HOME=/path/to/psi_home                     # data root: ${PSI_HOME}/data/simple/...v30_split/{train,val}
+#   BASE_CHECKPOINT_PATH=<Cosmos3-Nano DCP dir>
+#   WAN_VAE_PATH=<Wan2.2_VAE.pth>
+#   IMAGINAIRE_OUTPUT_ROOT=/path/to/output_root    # persist checkpoints
+# ============================================================================
+
+[job]
+task         = "vfm"
+experiment   = "action_policy_simple_nano"
+project      = "psi"
+group        = "cosmos3_action_sft"
+# RESUME_RUN_NAME (exported by the launcher's `--resume`) reuses an existing run
+# so training auto-resumes from its checkpoints; unset -> a fresh ${now} timestamp.
+name         = "${oc.env:RESUME_RUN_NAME,action_policy_simple_${now:%y%m%d%H%M}}"
+wandb_mode   = "online"   # set "online" + export WANDB_API_KEY to log
+
+[model]
+precision = "bfloat16"
+
+[model.parallelism]
+data_parallel_shard_degree     = 8    # 8-GPU model shard; set replicate for multi-node HSDP
+data_parallel_replicate_degree = 1
+
+[model.activation_checkpointing]
+mode           = "full"
+save_ops_regex = ["fmha"]
+
+[model.tokenizer]
+vae_path = "${oc.env:WAN_VAE_PATH}"
+
+[scheduler]
+cycle_lengths = [40000]   # match max_iter
+
+[trainer]
+max_iter     = 40000
+logging_iter = 100
+
+[checkpoint]
+load_path = "${oc.env:BASE_CHECKPOINT_PATH}"
+save_iter = 1000
+
+[dataloader_train]
+# Per-rank packed-batch sample cap. Raise it once a run fits.
+max_samples_per_batch = 16

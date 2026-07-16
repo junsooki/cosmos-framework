@@ -29,17 +29,24 @@ def normalize_action(
     method: str,
     stats: dict[str, torch.Tensor],
 ) -> torch.Tensor:
-    """Normalize action tensor."""
+    """Normalize action tensor.
+
+    Dimensions with a zero range (``min==max`` / ``q01==q99``, e.g. zero-padded dummy
+    channels for a reduced embodiment) map to 0 (the neutral center) instead of an
+    arbitrary offset, so a constant channel contributes no signal.
+    """
     if method == "quantile":
         q01, q99 = stats["q01"], stats["q99"]
-        denom = (q99 - q01).clamp(min=1e-8)
-        return 2.0 * (action - q01) / denom - 1.0
+        rng = q99 - q01
+        out = 2.0 * (action - q01) / rng.clamp(min=1e-8) - 1.0
+        return torch.where(rng > 1e-8, out, torch.zeros_like(out))
     if method == "meanstd":
         return (action - stats["mean"]) / stats["std"].clamp(min=1e-8)
     if method == "minmax":
         lo, hi = stats["min"], stats["max"]
-        denom = (hi - lo).clamp(min=1e-8)
-        return 2.0 * (action - lo) / denom - 1.0
+        rng = hi - lo
+        out = 2.0 * (action - lo) / rng.clamp(min=1e-8) - 1.0
+        return torch.where(rng > 1e-8, out, torch.zeros_like(out))
     raise ValueError(f"Unknown normalization method: {method!r}")
 
 
