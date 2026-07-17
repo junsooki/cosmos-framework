@@ -18,7 +18,6 @@ import torch
 from torch.utils.data import Dataset
 
 from cosmos_framework.data.generator.action.action_normalization import load_action_stats, normalize_action
-from cosmos_framework.data.generator.action.action_processing import resolve_action_normalization
 from cosmos_framework.data.generator.action.action_spec import ActionSpec
 from cosmos_framework.data.generator.action.domain_utils import get_domain_id
 from cosmos_framework.data.generator.action.pose_utils import compute_idle_frames
