@@ -21,7 +21,8 @@ EMBODIMENT_TO_DOMAIN_ID: dict[str, int] = {
     "embodiment_c_gripper": 15,
     "embodiment_c_gripper_ext": 15,
     "xdof_yam": 16,
-    "g1_simple": 18,  # G1 whole-body locomotion+pick; single 36-D action, 32-D states
+    "molmoact2_yam": 16,  # MolmoAct2 uses the same YAM 20D FK action contract
+    "g1_simple": 17,  # SIMPLE whole-body locomanipulation; single 36-D action, 32-D states
     "fractal": 20,
 }
 
@@ -42,6 +43,7 @@ EMBODIMENT_TO_RAW_ACTION_DIM: dict[str, int] = {
     "embodiment_c_gripper_ext": 29,
     "xdof_yam": 20,
     "g1_simple": 36,  # single flat action column (hands/arms/rpy/height/base-vel/target_yaw)
+    "molmoact2_yam": 20,
     "fractal": 10,
     # NOTE: ``libero`` (7/10/13 depending on ``rotation_space``) and ``hand_pose``
     # (variable with ``keypoint_option`` and ``rotation_format``) are absent
