@@ -421,10 +421,8 @@ class ImaginaireTrainer:
         """
         self.callbacks.on_validation_start(model, dataloader_val, iteration=iteration)
         model.eval()
-
-        def _run_val_epoch() -> int:
-            """Run one validation pass; return the number of batches processed."""
-            processed = 0
+        # Evaluate on the full validation set.
+        with ema.ema_scope(model, enabled=model.config.ema.enabled):
             for val_iter, data_batch in enumerate(dataloader_val):
                 if self.config.trainer.max_val_iter is not None and val_iter >= self.config.trainer.max_val_iter:
                     break
