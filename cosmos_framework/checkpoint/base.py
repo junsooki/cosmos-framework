@@ -52,12 +52,6 @@ class AbstractCheckpointer(ABC):
         self.verbose = config_checkpoint.verbose
         self.keys_not_to_resume = config_checkpoint.keys_not_to_resume
         self.keys_to_skip_loading = getattr(config_checkpoint, "keys_to_skip_loading", [])
-        # When True, after each save keep full state (model+optim+scheduler+trainer) only for
-        # the latest checkpoint and strip older ones down to model weights (see
-        # DistributedCheckpointer._prune_older_checkpoints_to_model_only).
-        self.keep_only_model_for_older_checkpoints = getattr(
-            config_checkpoint, "keep_only_model_for_older_checkpoints", False
-        )
         self.broadcast_via_filesystem = config_checkpoint.broadcast_via_filesystem
         # Create the object store client interface.
         if config_checkpoint.load_from_object_store.enabled:
