@@ -3,12 +3,46 @@
 # SPDX-License-Identifier: OpenMDW-1.1
 
 # ============================================================================
-# Per-experiment launcher: G1 "simple" (whole-body locomotion+pick) action-policy SFT.
-# Selects examples/toml/sft_config/action_policy_simple.toml (experiment
-# `action_policy_simple_nano`) and delegates ALL logic — .env loading, --resume,
-# run-name/log timestamping — to launch_sft_action_policy_psix.sh, which derives
-# the run-name prefix from the selected TOML. Pass --resume [latest|<ts>] and any
-# EXTRA_TAIL_OVERRIDES / EXTRA_TRAIN_ARGS exactly as with the other launchers.
+# Structured-TOML launch for SIMPLE action-policy SFT on Cosmos3-Nano (8B MoT).
+# Drives cosmos_framework.scripts.train against
+# examples/toml/sft_config/action_policy_simple.toml (selects the
+# registered `action_policy_simple_nano` experiment; res480, joint_pos 8D +
+# use_state, trains the generation + action heads). See
+# docs/action_policy_simple_posttrain.md.
+#
+# Env vars (override for your filesystem):
+#   DATASET_PATH          Cosmos3-SIMPLE
+#   BASE_CHECKPOINT_PATH  DCP of nvidia/Cosmos3-Nano (convert_model_to_dcp; see docs)
+#   WAN_VAE_PATH          Wan2.2 VAE .pth (Wan-AI/Wan2.2-TI2V-5B)
+#   WANDB_API_KEY         for online logging (TOML wandb_mode="online")
+#   NPROC_PER_NODE        torchrun --nproc_per_node (default 8)
+#   EXTRA_TAIL_OVERRIDES  space-separated Hydra overrides (e.g. the keep-ranges filter)
+#
+# Single-node smoke (config/data sanity, a few iters):
+#   export EXTRA_TAIL_OVERRIDES="trainer.max_iter=10 checkpoint.save_iter=10 \
+#                                dataloader_train.max_samples_per_batch=32"
+#   bash examples/launch_sft_action_policy_simple.sh
+#
+# Multi-node: launch on every worker; the trainer reads torchrun's
+# --nnodes/--node_rank. For HSDP set
+# model.parallelism.data_parallel_replicate_degree = <num_nodes> (shard stays 8).
 # ============================================================================
-export TOML_FILE="examples/toml/sft_config/action_policy_simple.toml"
-exec bash "$(dirname "${BASH_SOURCE[0]}")/launch_sft_action_policy_psix.sh" "$@"
+
+TOML_FILE="examples/toml/sft_config/action_policy_simple.toml"
+: "${DATASET_PATH:=examples/data/lerobot_v30/simple_lerobot}"
+: "${BASE_CHECKPOINT_PATH:=examples/checkpoints/Cosmos3-Nano}"
+
+# The experiment reads ${oc.env:SIMPLE_ROOT}; bridge the launcher's DATASET_PATH to it.
+export SIMPLE_ROOT="${SIMPLE_ROOT:-$DATASET_PATH}"
+
+EXTRA_DATASET_CHECK='[[ -f "$SIMPLE_ROOT/meta/info.json" ]] || { echo "ERROR: missing $SIMPLE_ROOT/meta/info.json (prepare Cosmos3-SIMPLE — see docs/action_policy_droid_posttrain.md)" >&2; exit 1; }'
+
+# Extra Hydra overrides from the environment: a space-separated string word-split into
+# the TAIL_OVERRIDES array. An exported string survives `bash <wrapper>` (a child
+# process), unlike a TAIL_OVERRIDES array set in your shell. Use it e.g. to enable the
+# keep-ranges window filter (see docs/action_policy_droid_posttrain.md).
+TAIL_OVERRIDES=(
+    ${EXTRA_TAIL_OVERRIDES:-}
+)
+
+source "$(dirname "${BASH_SOURCE[0]}")/_sft_launcher_common.sh"
