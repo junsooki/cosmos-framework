@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: OpenMDW-1.1
 
-"""G1 "simple" whole-body locomotion+pick LeRobot v3.0 dataset (custom embodiment).
+""" "SIMPLE" whole-body loco-manipulation LeRobot v3.0 dataset (custom embodiment).
 
-Single egocentric camera. Unlike ``G1SonicNeckDataset`` (whose 80-D action is three
-concatenated sub-columns), this embodiment stores one flat 36-D ``action`` column per frame:
+Single egocentric camera. This embodiment stores one flat 36-D ``action`` column per frame:
 
     [left_hand(7), right_hand(7), left_arm(7), right_arm(7), rpy(3), height(1),
      base_vel(3), target_yaw(1)]  =  36   (per meta/modality.json)
@@ -16,10 +15,6 @@ rows ``1:``). With ``action_normalization="minmax"`` actions are mapped ``[min, 
 using the per-column ``action`` stats in ``meta/stats.json``; the prepended state row is instead
 normalized with the ``states`` stats (different modality/range). Pass ``action_normalization=None``
 to train on raw values.
-
-Frame indexing mirrors ``G1SonicNeckDataset``: episodes are contiguous runs in ``self._rows``
-(sorted by global ``index``), and only within-episode windows ``[start, start+chunk_length]`` are
-valid, so a window never crosses an episode boundary.
 """
 
 from __future__ import annotations
