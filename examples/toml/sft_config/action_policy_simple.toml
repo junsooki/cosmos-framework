@@ -9,8 +9,8 @@
 # experiment; this file only sets run-level scalars (iters, ckpt cadence,
 # parallelism, batch, VAE).
 #
-# Env required (PSI_HOME points the experiment's dataset roots):
-#   PSI_HOME=/path/to/psi_home                     # data root: ${PSI_HOME}/data/simple/...v30_split/{train,val}
+# Env required:
+#   SIMPLE_ROOT=/path/to/simple
 #   BASE_CHECKPOINT_PATH=<Cosmos3-Nano DCP dir>
 #   WAN_VAE_PATH=<Wan2.2_VAE.pth>
 #   IMAGINAIRE_OUTPUT_ROOT=/path/to/output_root    # persist checkpoints
@@ -19,12 +19,10 @@
 [job]
 task         = "vfm"
 experiment   = "action_policy_simple_nano"
-project      = "psi"
-group        = "cosmos3_action_sft"
-# RESUME_RUN_NAME (exported by the launcher's `--resume`) reuses an existing run
-# so training auto-resumes from its checkpoints; unset -> a fresh ${now} timestamp.
-name         = "${oc.env:RESUME_RUN_NAME,action_policy_simple_${now:%y%m%d%H%M}}"
-wandb_mode   = "online"   # set "online" + export WANDB_API_KEY to log
+project      = "cosmos3_action"
+group        = "action_sft"
+name         = "action_policy_simple"
+wandb_mode   = "online"
 
 [model]
 precision = "bfloat16"
