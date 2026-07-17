@@ -1,17 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: OpenMDW-1.1
 
-"""HTTP inference server for the PsiX / G1 action policy (OmniMoTModel).
-
-A g1-tailored fork of ``action_policy_server_libero`` that fixes train/inference
-discrepancies for ``use_state`` / single-ego-camera action policies:
-  * adds the required ``action_processing_record`` so generated actions can be
-    externalized,
-  * builds the prompt to match training exactly — viewpoint sentence (from the
-    request's ``view_point``, default ``ego_view``), the *padded* resolution, and
-    integer-truncated duration,
-  * exposes ``--no-guardrails`` to skip the gated video guardrail,
-  * writes the rollout **inference video** (rollout.mp4) under ``--dump-dir``.
+"""HTTP inference server for the SIMPLE action policy (OmniMoTModel).
 
 The server exposes two endpoints:
 
@@ -23,11 +13,11 @@ The server exposes two endpoints:
 
 Direct DCP loading works when given the matching training config:
 
-  PYTHONPATH=. python -m cosmos_framework.scripts.action_policy_server_psix \
+  PYTHONPATH=. python -m cosmos_framework.scripts.action_policy_server_simple \
     --checkpoint-path /path/to/job/checkpoints/iter_000010000 \
     --config-file /path/to/train-output/config.yaml \
     --action-chunk-size 32 --no-guardrails --fps 30 \
-    --stats-path /path/to/g1_v30/meta/cosmos3_stats_flat.json \
+    --stats-path /path/to/simple/meta/cosmos3_stats_flat.json \
     --dump-dir /path/to/rollouts \
     --port 8000
 """
@@ -113,7 +103,7 @@ def _augment_prompt_with_metadata(
     append_duration_fps: bool = True,
     append_resolution_info: bool = True,
 ) -> str:
-    """Append viewpoint, duration/FPS, and resolution metadata to match training.
+    """ Append viewpoint, duration/FPS, and resolution metadata to match training.
 
     Mirrors ``ViewpointTextInfo``, ``DurationFPSTextTimeStamps`` and
     ``ResolutionTextInfo`` augmentors (in that order) from the Action training
