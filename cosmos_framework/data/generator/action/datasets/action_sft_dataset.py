@@ -23,6 +23,7 @@ from cosmos_framework.data.generator.action.datasets.droid_lerobot_dataset impor
     DROIDLeRobotDataset,
 )
 from cosmos_framework.data.generator.action.datasets.libero_lerobot_dataset import LIBEROLeRobotDataset
+from cosmos_framework.data.generator.action.datasets.simple_dataset import SimpleActionDataset
 from cosmos_framework.data.generator.action.transforms import ActionTransformPipeline
 
 
@@ -215,6 +216,54 @@ def get_action_libero_sft_dataset(
         append_resolution_info=append_resolution_info,
         append_idle_frames=append_idle_frames,
         format_prompt_as_json=format_prompt_as_json,
+    )
+    sft = ActionSFTDataset(dataset, transform, resolution)
+    if iterable_shuffle:
+        return ActionIterableShuffleDataset(sft, seed=episode_shuffle_seed)
+    return sft
+
+
+def get_action_simple_sft_dataset(
+    *,
+    root: str,
+    fps: float = 50.0,
+    chunk_length: int = 16,
+    mode: str = "policy",
+    use_state: bool = True,
+    action_normalization: str | None = None,
+    viewpoint: str = "ego_view",
+    resolution: str | int = "256",
+    max_action_dim: int = 36,
+    tokenizer_config: dict | None = None,
+    cfg_dropout_rate: float = 0.1,
+    append_viewpoint_info: bool = True,
+    append_duration_fps_timestamps: bool = True,
+    append_resolution_info: bool = True,
+    append_idle_frames: bool = False,
+    iterable_shuffle: bool = False,
+    episode_shuffle_seed: int = 42,
+    domain_name: str = "g1_simple",
+) -> Dataset:
+    """Build the G1 "simple" action SFT dataset: flat 36-D ``action`` + 32-D ``states``
+    prepend (use_state), single ego camera, fps 50."""
+    dataset = SimpleActionDataset(
+        root=root,
+        fps=fps,
+        chunk_length=chunk_length,
+        viewpoint=viewpoint,
+        mode=mode,
+        use_state=use_state,
+        action_normalization=action_normalization,
+        domain_name=domain_name,
+    )
+    transform = ActionTransformPipeline(
+        tokenizer_config=tokenizer_config,
+        cfg_dropout_rate=cfg_dropout_rate,
+        max_action_dim=max_action_dim,
+        append_viewpoint_info=append_viewpoint_info,
+        append_duration_fps_timestamps=append_duration_fps_timestamps,
+        append_resolution_info=append_resolution_info,
+        append_idle_frames=append_idle_frames,
     )
     sft = ActionSFTDataset(dataset, transform, resolution)
     if iterable_shuffle:
