@@ -218,11 +218,3 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
-
-# Run artifacts (generated; not for tracking).
-.data
-outputs_*
-.runs
-.logs/*
-!.logs/.gitkeep
-.serve*
