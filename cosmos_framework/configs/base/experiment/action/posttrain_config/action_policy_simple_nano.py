@@ -3,12 +3,10 @@
 
 """``action_policy_simple_nano`` — Cosmos3-Nano G1 "simple" action policy SFT recipe.
 
-Mirrors the DROID/g1_sonic_neck action recipes, but feeds the G1 "simple" whole-body
-locomotion+pick dataset (flat 36-D ``action`` + 32-D ``states`` prepend, single ego
+"SIMPLE" whole-body locomotion+pick dataset (flat 36-D ``action`` + 32-D ``states`` prepend, single ego
 camera, fps 50) through ``ActionTransformPipeline``, and trains the generation + action
 heads from the public ``nvidia/Cosmos3-Nano`` base. ``max_action_dim`` is set to 36 to
 match the action width; the ``g1_simple`` embodiment tag gives it its own action head.
-Train/val roots point at the train/val split produced by split_dataset.py.
 
 Usage (1 node, 8 GPU)::
 
@@ -106,8 +104,8 @@ action_policy_simple_nano = LazyDict(
             logging_iter=1,
             max_iter=100,  # smoke
             max_val_iter=10,
-            run_validation=True,
-            run_validation_on_start=True,
+            run_validation=False,
+            run_validation_on_start=False,
             save_zero_checkpoint=False,
             seed=42,
             timeout_period=999999999,
@@ -187,7 +185,7 @@ action_policy_simple_nano = LazyDict(
                     simple=dict(
                         ratio=1,
                         dataset=L(get_action_simple_sft_dataset)(
-                            root="${oc.env:PSI_HOME}/data/simple/G1WholebodyLocomotionPickBetweenTablesTeleop-v0_v30_split/train",
+                            root="${oc.env:SIMPLE_ROOT}",
                             fps=50.0,
                             chunk_length=32,
                             mode="policy",
@@ -206,52 +204,7 @@ action_policy_simple_nano = LazyDict(
                 ),
             ),
         ),
-        # Validation reuses the training dataset (no held-out split for this small
-        # recipe). Enables the server's --run-validation sanity check; eval-appropriate
-        # tweaks vs. train: deterministic order (iterable_shuffle=False) and no CFG
-        # dropout (cfg_dropout_rate=0.0).
-        dataloader_val=L(PackingDataLoader)(
-            audio_sample_rate=48000,
-            dataset_name="action_simple",
-            # Track the train loader so a TOML override of [dataloader_train] applies here too
-            # (val has no TOML section; single source of truth for the per-rank batch cap).
-            max_samples_per_batch="${dataloader_train.max_samples_per_batch}",
-            max_sequence_length=None,
-            patch_spatial=2,
-            sound_latent_fps=0,
-            tokenizer_spatial_compression_factor=16,
-            tokenizer_temporal_compression_factor=4,
-            dataloader=L(RankPartitionedDataLoader)(
-                batch_size=4,
-                in_order=True,
-                num_workers=4,  # train (iterable_shuffle): world_size(8) x num_workers(4) = 32 shards <= 94 train episodes OK. Val is map-style (5 eps), no shard hang.
-                persistent_workers=True,
-                pin_memory=True,
-                prefetch_factor=4,
-                sampler=None,
-                datasets=dict(
-                    simple=dict(
-                        ratio=1,
-                        dataset=L(get_action_simple_sft_dataset)(
-                            root="${oc.env:PSI_HOME}/data/simple/G1WholebodyLocomotionPickBetweenTablesTeleop-v0_v30_split/val",
-                            fps=50.0,
-                            chunk_length=32,
-                            mode="policy",
-                            use_state=True,
-                            iterable_shuffle=False,  # deterministic for validation
-                            episode_shuffle_seed=42,
-                            action_normalization="minmax",
-                            viewpoint="ego_view",
-                            resolution="256",
-                            max_action_dim="${model.config.max_action_dim}",
-                            cfg_dropout_rate=0.0,  # no CFG dropout at eval
-                            tokenizer_config="${model.config.vlm_config.tokenizer}",
-                            domain_name="g1_simple"
-                        ),
-                    ),
-                ),
-            ),
-        ),
+        dataloader_val=None,
         upload_reproducible_setup=False,
     ),
     flags={"allow_objects": True},
