@@ -1,7 +1,7 @@
 # G1 `simple` Whole-Body Action Policy Server
 
 The G1 **`g1_simple`** whole-body action policy (Cosmos3-Nano) is served by an HTTP **policy server**
-that streams predicted action chunks to a client. The server (`action_policy_server_psix.py`) is the
+that streams predicted action chunks to a client. The server (`action_policy_server_simple.py`) is the
 single-ego-camera, `use_state` variant of the action server: it takes one observation image plus a
 proprioceptive state vector and returns a chunk of raw (denormalized) actions and a short rollout video.
 
@@ -37,7 +37,7 @@ export TASK=G1WholebodyBendPickTeleop-v0
 export CKPT=.runs/psi/cosmos3_action_sft/action_policy_simple_bendpick20/checkpoints/iter_000010000
 export DS=/path/to/data/simple/${TASK}_v30_20ep
 
-CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. .venv/bin/python -m cosmos_framework.scripts.action_policy_server_psix \
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. .venv/bin/python -m cosmos_framework.scripts.action_policy_server_simple \
   --checkpoint-path $CKPT --config-file cosmos_framework/configs/base/config.py \
   --experiment action_policy_simple_nano \
   --experiment-overrides model.config.tokenizer.vae_path=$WAN_VAE_PATH model.config.compile.enabled=False \
