@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: OpenMDW-1.1
 
 # ============================================================================
-# G1 "simple" (whole-body locomotion+pick) action-policy SFT — run config for the
+# "SIMPLE" humanoid loco-manipulation action-policy SFT — run config for the
 # `action_policy_simple_nano` experiment. Recipe knobs (optimizer/lr, scheduler,
 # grad_clip, action-head skip-on-load, flat 36-D action / 32-D state dataset wiring,
 # max_action_dim=36, fps 50, train/val split roots) live in the registered
