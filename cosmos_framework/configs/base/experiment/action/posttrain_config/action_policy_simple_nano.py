@@ -176,7 +176,7 @@ action_policy_simple_nano = LazyDict(
             dataloader=L(RankPartitionedDataLoader)(
                 batch_size=4,
                 in_order=False,
-                num_workers=4,  # train (iterable_shuffle): world_size(8) x num_workers(4) = 32 shards <= 94 train episodes OK. Val is map-style (5 eps), no shard hang.
+                num_workers=4,
                 persistent_workers=True,
                 pin_memory=True,
                 prefetch_factor=4,
