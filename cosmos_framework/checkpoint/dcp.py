@@ -44,7 +44,6 @@ import enum
 import multiprocessing
 import os
 import re
-import shutil
 import time
 from multiprocessing import get_context
 from typing import Any, Dict, Optional, Protocol, Tuple, Union, runtime_checkable
