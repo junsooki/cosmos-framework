@@ -201,7 +201,7 @@ class ActionBaseDataset(ABC, Dataset):
         else:
             normalized_action = normalize_action(action, self.action_normalization, self._load_norm_stats())
         formatted_video = (video * 255.0).clamp(0.0, 255.0).to(torch.uint8).permute(1, 0, 2, 3)
-        result = {
+        return {
             "ai_caption": ai_caption,
             "video": formatted_video,
             "action": normalized_action,
@@ -212,14 +212,6 @@ class ActionBaseDataset(ABC, Dataset):
             "idle_frames": torch.tensor(idle_frames, dtype=torch.long),
             **extras,
         }
-        # Denormalization affine (raw = normalized*scale + offset) so downstream consumers
-        # (e.g. the in-training-loop validation) can report action error in RAW units. Attach
-        # the per-dim offset/scale the SAME normalization uses; None => raw actions already.
-        if self.action_normalization is not None:
-            affine = resolve_action_normalization(self.action_normalization, self._load_norm_stats())
-            result["action_denorm_offset"] = affine.offset.detach().clone()  # [D]
-            result["action_denorm_scale"] = affine.scale.detach().clone()    # [D]
-        return result
 
     @property
     def _rows(self) -> list[dict[str, Any]]:
