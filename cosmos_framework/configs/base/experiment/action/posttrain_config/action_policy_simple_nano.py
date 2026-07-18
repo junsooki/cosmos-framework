@@ -151,7 +151,6 @@ action_policy_simple_nano = LazyDict(
             load_training_state=False,
             only_load_scheduler_state=False,
             save_iter=100,
-            keep_only_model_for_older_checkpoints=True,
             strict_resume=False,  # base init: tolerate key set differences
             verbose=True,
             hf_export=dict(

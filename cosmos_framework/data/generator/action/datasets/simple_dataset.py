@@ -157,7 +157,7 @@ class SimpleActionDataset(ActionBaseDataset):
             if _ACTION_FEATURE not in stats or "min" not in stats.get(_ACTION_FEATURE, {}):
                 raise KeyError(
                     f"{type(self).__name__}: meta/stats.json missing stats for {_ACTION_FEATURE!r}. "
-                    "Re-convert with cosmos_framework/scripts/convert_dataset_simple_to_v30.py, "
+                    "Ensure the LeRobot v3.0 dataset meta/stats.json includes the action feature; "
                     "or set action_normalization=None."
                 )
             self._norm_stats = {

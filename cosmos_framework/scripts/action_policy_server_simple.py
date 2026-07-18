@@ -17,7 +17,7 @@ Direct DCP loading works when given the matching training config:
     --checkpoint-path /path/to/job/checkpoints/iter_000010000 \
     --config-file /path/to/train-output/config.yaml \
     --action-chunk-size 32 --no-guardrails --fps 30 \
-    --stats-path /path/to/simple/meta/cosmos3_stats_flat.json \
+    --stats-path /path/to/simple/meta/stats.json \
     --dump-dir /path/to/rollouts \
     --port 8000
 """
@@ -726,8 +726,9 @@ class ActionModelService:
             raw_stats = json.load(f)
         if not isinstance(raw_stats, dict):
             raise ValueError(f"Action stats file must contain a dict: {stats_path}")
-        # cosmos3_stats_flat.json nests action under "action" (symmetric with "state");
-        # fall back to the legacy "global"/"global_raw" namespace or a flat top-level dict.
+        # Accepts either a LeRobot meta/stats.json (action under the "action" feature key)
+        # or a merged stats file (action under "action"); fall back to the legacy
+        # "global"/"global_raw" namespace or a flat top-level dict.
         stats_key = "global_raw" if self.action_normalization == "quantile_rot" else "global"
         stats = raw_stats.get("action", raw_stats.get(stats_key, raw_stats))
         if not isinstance(stats, dict):
@@ -767,10 +768,12 @@ class ActionModelService:
             f"normalization={self.action_normalization}, {stats_summary}"
         )
 
-        # State stats for the prepended use_state conditioning row (merged into the
-        # same file under "state"). Normalized with the same method as the action, but
+        # State stats for the prepended use_state conditioning row. Accept either the
+        # merged file's "state" key or the LeRobot meta/stats.json "states" feature key,
+        # so --stats-path can point directly at a dataset's meta/stats.json (no separate
+        # merged stats file needed). Normalized with the same method as the action, but
         # the state's OWN stats — state and action are different modalities.
-        state_stats = raw_stats.get("state")
+        state_stats = raw_stats.get("state", raw_stats.get("states"))
         if isinstance(state_stats, dict):
             if self.action_normalization == "meanstd":
                 self.state_mean = torch.tensor(state_stats["mean"], dtype=torch.float32)

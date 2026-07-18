@@ -35,12 +35,12 @@ TOML_FILE="examples/toml/sft_config/action_policy_simple.toml"
 # The experiment reads ${oc.env:SIMPLE_ROOT}; bridge the launcher's DATASET_PATH to it.
 export SIMPLE_ROOT="${SIMPLE_ROOT:-$DATASET_PATH}"
 
-EXTRA_DATASET_CHECK='[[ -f "$SIMPLE_ROOT/meta/info.json" ]] || { echo "ERROR: missing $SIMPLE_ROOT/meta/info.json (prepare Cosmos3-SIMPLE — see docs/action_policy_droid_posttrain.md)" >&2; exit 1; }'
+EXTRA_DATASET_CHECK='[[ -f "$SIMPLE_ROOT/meta/info.json" ]] || { echo "ERROR: missing $SIMPLE_ROOT/meta/info.json (prepare Cosmos3-SIMPLE — see docs/action_policy_simple_posttrain.md)" >&2; exit 1; }'
 
 # Extra Hydra overrides from the environment: a space-separated string word-split into
 # the TAIL_OVERRIDES array. An exported string survives `bash <wrapper>` (a child
 # process), unlike a TAIL_OVERRIDES array set in your shell. Use it e.g. to enable the
-# keep-ranges window filter (see docs/action_policy_droid_posttrain.md).
+# keep-ranges window filter (see docs/action_policy_simple_posttrain.md).
 TAIL_OVERRIDES=(
     ${EXTRA_TAIL_OVERRIDES:-}
 )
